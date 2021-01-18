@@ -1,1 +1,77 @@
+version: 2.1
 
+orbs:
+  python: circleci/python@0.2.1
+
+jobs:
+  build-and-test:
+    executor: python/default
+    - run_tests:
+        docker:
+         - image: circleci/python:3.9.1
+           auth:
+             username: mydockerhub-user
+             password: $DOCKERHUB_PASSWORD
+           environment:
+             FLASK_CONFIG: testing
+             TEST_DATABASE_URL: postgresql://root@localhost/circle_test?sslmode=disable
+         - image: circleci/postgres: 9.6.5
+           auth:
+             username: mydockerhub-user
+             password: $DOCKERHUB_PASSWORD
+           environment:
+             POSTGRE_USER: postgres
+             POSTGRE_DB: 
+             POSTGRE_PASSWORD: ""
+    steps:
+      - checkout
+      #- run: pip install -r requirements/dev.txt
+      #    name: Update PATH and Define Environment Variable at Runtime
+      #    command:
+      #      export CONDUIT_SECRET='something-really-secret'
+      #      export FLASK_APP=/path/to/autoapp.py
+      #      export FLASK_DEBUG=0
+      #- python/load-cache
+      - restore_cache
+          key: deps1-{{ .Branch }}-{{ checksum "requirements/prod.txt" }}
+      -run:
+         command: |
+           python3 -m venv venv
+           . venv/bin/activate
+           pip install -r requirements/prod.txt
+      - python/install-deps
+      - run:
+          name: Install Python deps in a venv
+          command: |
+            python3 -m venv venv
+            . venv/bin/activate
+            pip install -r requirements/prod.txt
+      
+      - save-cache
+          key: deps1-{{ .Branch }}-{{ checksum "requirements/prod.txt" }}}
+          paths:
+            - "venv"
+      - run:
+          command: 
+            . venv/bin/activate
+            ./manage.py test
+          name: Test
+      - store_artifacts:
+          path: test-reports/
+          destination: tr1
+      - store_test_results:
+          path: test-reports/
+      #- run:
+      #    name: Update PATH and Define Environment Variable at Runtime
+      #    command:
+      #      export CONDUIT_SECRET='something-really-secret'
+      #      export FLASK_APP=/path/to/autoapp.py
+      #      export FLASK_DEBUG=1
+
+workflows:
+  main:
+    jobs:
+      - build-and-test
+      #- run_tests:
+      #    docker:
+      #     - image:circleci/python: 3.9.1
